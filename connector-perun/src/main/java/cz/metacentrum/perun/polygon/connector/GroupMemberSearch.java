@@ -21,9 +21,10 @@ import org.identityconnectors.framework.spi.SearchResultsHandler;
 
 import cz.metacentrum.perun.polygon.connector.rpc.PerunRPC;
 import cz.metacentrum.perun.polygon.connector.rpc.model.Attribute;
-import cz.metacentrum.perun.polygon.connector.rpc.model.Group;
+import cz.metacentrum.perun.polygon.connector.rpc.model.GroupMemberData;
+import cz.metacentrum.perun.polygon.connector.rpc.model.GroupMemberRelation;
 import cz.metacentrum.perun.polygon.connector.rpc.model.Member;
-import cz.metacentrum.perun.polygon.connector.rpc.model.Vo;
+import cz.metacentrum.perun.polygon.connector.rpc.model.SimpleAttribute;
 
 public class GroupMemberSearch extends ObjectSearchBase implements ObjectSearch {
 
@@ -48,11 +49,20 @@ public class GroupMemberSearch extends ObjectSearchBase implements ObjectSearch 
 				String uid = (String)AttributeUtil.getSingleValue(((EqualsFilter)filter).getAttribute());
 				LOG.info("Reading GroupMember with uid {0}", uid);
 				String[] parts = uid.split(":");
-				Member member = perun.getGroupsManager().getGroupMemberById(Integer.valueOf(parts[0]), Integer.valueOf(parts[1]));
+				Integer groupId = Integer.valueOf(parts[0]);
+				Member member = perun.getGroupsManager().getGroupMemberById(groupId, Integer.valueOf(parts[1]));
 				LOG.info("Query returned {0} group member", member);
 				
 				if(member != null) {
-					mapResult(Integer.valueOf(parts[0]), member, handler);
+					GroupMemberRelation memberRelation = new GroupMemberRelation();
+					memberRelation.setG(groupId);
+					memberRelation.setM(member.getId());
+					memberRelation.setS(member.getStatus());
+					memberRelation.setSg(member.getSourceGroupId());
+					memberRelation.setT(member.getMembershipType());
+					mapResult(memberRelation, 
+						  perun.getAttributesManager().getMemberGroupAttributes(member.getId(), groupId), 
+						  handler);
 				}
 				SearchResult result = new SearchResult(
 						 null, 	/* cookie */ 
@@ -77,28 +87,11 @@ public class GroupMemberSearch extends ObjectSearchBase implements ObjectSearch 
 		Integer pageOffset = options.getPagedResultsOffset();
 		String pageResultsCookie = options.getPagedResultsCookie();
 		
-		LOG.info("Reading list of VOs");
-		List<Vo> vos = perun.getVosManager().getAllVos();
-		LOG.info("Query returned {0} VOs", vos.size());
-		
-		List<Group> groups = new ArrayList<Group>();
-		for(Vo vo : vos) {
-			LOG.info("Reading list of groups for VO {0}", vo.getId());
-			groups.addAll(perun.getGroupsManager().getAllGroups(vo.getId()));
-			LOG.info("Total groups so far: {0}", groups.size());
-		}
+		LOG.info("Reading list of groups members.");
+		GroupMemberData groupsMembers = perun.getIntegrationManager().getGroupMemberData();
+		LOG.info("Total groups members found: {0}", groupsMembers.getRelations().size());
+		List<GroupMemberRelation> members = groupsMembers.getRelations();
 
-		List<Pair<Integer,Member>> members = new ArrayList<Pair<Integer,Member>>();
-		for(Group group: groups) {
-			LOG.info("Reading list of members for group {0}", group.getId());
-			members.addAll(perun.getGroupsManager().getGroupMembers(group.getId())
-					.stream()
-					.map(member -> { return new Pair<Integer,Member>(group.getId(), member); } ) 
-					.collect(Collectors.toList())
-					);
-			LOG.info("Total members so far: {0}", members.size());
-		}
-		
 		int remaining = -1;
 		
 		LOG.info("Reading {0} GroupMembers from page at offset {1}", pageSize, pageOffset);
@@ -109,8 +102,10 @@ public class GroupMemberSearch extends ObjectSearchBase implements ObjectSearch 
 			remaining = size - last;
 		}
 		LOG.info("Query returned {0} members", members.size());
-		for(Pair<Integer,Member> member : members) {
-			mapResult(member.getKey(), member.getValue(), handler);
+		for(GroupMemberRelation member : members) {
+			mapResult(member, 
+				groupsMembers.getGroupMemberAttributes().get(member.getG().toString()).get(member.getM().toString()), 
+				handler);
 		}
 		SearchResult result = new SearchResult(
 				 pageResultsCookie, 	/* cookie */ 
@@ -120,10 +115,11 @@ public class GroupMemberSearch extends ObjectSearchBase implements ObjectSearch 
 		((SearchResultsHandler)handler).handleResult(result);
 	}
 
-	private void mapResult(Integer groupId, Member member, ResultsHandler handler) {
+	private void mapResult(GroupMemberRelation member, List<Attribute> attrs, ResultsHandler handler) {
+		Integer groupId = member.getG();
 		ConnectorObjectBuilder out = new ConnectorObjectBuilder();
 		out.setObjectClass(objectClass);
-		String name = groupId.toString() + ":" + member.getId();
+		String name = groupId.toString() + ":" + member.getM();
 		out.setName(name);
 		out.setUid(name);
 
@@ -136,25 +132,24 @@ public class GroupMemberSearch extends ObjectSearchBase implements ObjectSearch 
 		// member_group_member_id
 		ab = new AttributeBuilder();
 		ab.setName("member_group_member_id");
-		ab.addValue(member.getId());
+		ab.addValue(member.getM());
 		out.addAttribute(ab.build());
 		// member_group_membership_type
 		ab = new AttributeBuilder();
 		ab.setName("member_group_membership_type");
-		ab.addValue(member.getMembershipType());
+		ab.addValue(member.getT());
 		out.addAttribute(ab.build());
 		// member_group_source_group_id
 		ab = new AttributeBuilder();
 		ab.setName("member_group_source_group_id");
-		ab.addValue(member.getSourceGroupId());
+		ab.addValue(member.getSg());
 		out.addAttribute(ab.build());
 		// member_group_source_group_status
 		ab = new AttributeBuilder();
 		ab.setName("member_group_source_group_status");
-		ab.addValue(member.getGroupStatuses().get(member.getSourceGroupId().toString()));
+		ab.addValue(member.getS());
 		out.addAttribute(ab.build());
 		
-		List<Attribute> attrs = perun.getAttributesManager().getMemberGroupAttributes(member.getId(), groupId);
 		if(attrs != null) {
 			for(Attribute attr: attrs) {
 				out.addAttribute(createAttribute(attr));
@@ -162,6 +157,5 @@ public class GroupMemberSearch extends ObjectSearchBase implements ObjectSearch 
 		}
 		handler.handle(out.build());
 	}
-
 
 }

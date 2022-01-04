@@ -26,6 +26,8 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
+import org.identityconnectors.framework.common.objects.SyncResultsHandler;
+import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
@@ -33,6 +35,7 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.PoolableConnector;
 import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
+import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
 
 import cz.metacentrum.perun.polygon.connector.rpc.PerunRPC;
@@ -43,7 +46,7 @@ import cz.metacentrum.perun.polygon.connector.rpc.PerunRPC;
  */
 @ConnectorClass(displayNameKey = "cz.metacentrum.perun.polygon.connector", configurationClass = PerunRPCConfiguration.class)
 public class PerunRPCConnector 
-implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>
+implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, SyncOp
 {
 	private static final Log LOG = Log.getLog(PerunRPCConnector.class);
 	
@@ -61,6 +64,7 @@ implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>
 		
 		SchemaBuilder schemaBuilder = new SchemaBuilder(PerunRPCConnector.class);
 
+		schemaBuilder.defineObjectClass((new ExtSourceSchemaAdapter(perun)).getObjectClass().build());
 		schemaBuilder.defineObjectClass((new UserSchemaAdapter(perun)).getObjectClass().build());
 		schemaBuilder.defineObjectClass((new UserExtSchemaAdapter(perun)).getObjectClass().build());
 		schemaBuilder.defineObjectClass((new VoSchemaAdapter(perun)).getObjectClass().build());
@@ -129,10 +133,18 @@ implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>
 		
 		switch(objectClass.getObjectClassValue()) {
 
+		case "ExtSource":
+			search = new ExtSourceSearch(objectClass, perun);
+			break;
+			
 		case "User":
 			search = new UserSearch(objectClass, perun, configuration.getPerunNamespace());
 			break;
 
+		case "UserExtSource":
+			search = new UserExtSearch(objectClass, perun);
+			break;
+			
 		case "VirtualOrganization":
 			search = new VoSearch(objectClass, perun);
 			break;
@@ -161,6 +173,18 @@ implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>
 		}
 		
 		return;
+	}
+
+	@Override
+	public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options) {
+		SyncStrategy strategy = new AuditlogSyncStrategy(perun);
+		strategy.sync(objectClass, token, handler, options);
+	}
+
+	@Override
+	public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+		SyncStrategy strategy = new AuditlogSyncStrategy(perun);
+		return strategy.getLatestSyncToken(objectClass);
 	}
 
 }

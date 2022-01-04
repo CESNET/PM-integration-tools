@@ -3,10 +3,10 @@ package cz.metacentrum.perun.polygon.connector;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeUtil;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -21,20 +21,15 @@ import org.identityconnectors.framework.spi.SearchResultsHandler;
 
 import cz.metacentrum.perun.polygon.connector.rpc.PerunRPC;
 import cz.metacentrum.perun.polygon.connector.rpc.model.Attribute;
-import cz.metacentrum.perun.polygon.connector.rpc.model.Group;
-import cz.metacentrum.perun.polygon.connector.rpc.model.Member;
-import cz.metacentrum.perun.polygon.connector.rpc.model.RichGroup;
-import cz.metacentrum.perun.polygon.connector.rpc.model.RichMember;
 import cz.metacentrum.perun.polygon.connector.rpc.model.RichUser;
 import cz.metacentrum.perun.polygon.connector.rpc.model.User;
 import cz.metacentrum.perun.polygon.connector.rpc.model.UserExtSource;
-import cz.metacentrum.perun.polygon.connector.rpc.model.Vo;
 
-public class VoMemberSearch extends ObjectSearchBase implements ObjectSearch {
+public class UserExtSearch extends ObjectSearchBase implements ObjectSearch {
 
-	private static final Log LOG = Log.getLog(VoMemberSearch.class);
-	
-	public VoMemberSearch(ObjectClass objectClass, PerunRPC perun) {
+	private static final Log LOG = Log.getLog(UserExtSearch.class);
+
+	public UserExtSearch(ObjectClass objectClass, PerunRPC perun) {
 		super(objectClass, perun);
 	}
 
@@ -42,7 +37,7 @@ public class VoMemberSearch extends ObjectSearchBase implements ObjectSearch {
 	public void executeQuery(Filter filter, OperationOptions options, ResultsHandler handler) {
 		if(filter == null) {
 			// read all
-			readAllMembers(options, handler);
+			readAllUserExtSources(options, handler);
 			return;
 		}
 
@@ -51,11 +46,12 @@ public class VoMemberSearch extends ObjectSearchBase implements ObjectSearch {
 			if(((EqualsFilter)filter).getAttribute().is(Uid.NAME)) {
 				// read single object
 				String uid = (String)AttributeUtil.getSingleValue(((EqualsFilter)filter).getAttribute());
-				LOG.info("Reading member with uid {0}", uid);
-				RichMember member = perun.getMembersManager().getRichMemberWithAttributes(Integer.valueOf(uid));
+				LOG.info("Reading user ext source with uid {0}", uid);
+				List<UserExtSource> userExtSources = perun.getUsersManager().getUserExtSourcesByIds(Arrays.asList(Integer.valueOf(uid)));
+				LOG.info("Query returned {0} user ext sources", userExtSources.size());
 				
-				if(member != null) {
-					mapResult(member, handler);
+				if(!userExtSources.isEmpty()) {
+					mapResult(userExtSources.get(0), handler);
 				}
 				SearchResult result = new SearchResult(
 						 null, 	/* cookie */ 
@@ -72,47 +68,34 @@ public class VoMemberSearch extends ObjectSearchBase implements ObjectSearch {
 			LOG.warn("Filter of type {0} is not supported", filter.getClass().getName());
 			throw new RuntimeException("Unsupported query");
 		}
-
 	}
 
-	protected void readAllMembers(OperationOptions options, ResultsHandler handler) {
+	protected void readAllUserExtSources(OperationOptions options, ResultsHandler handler) {
 		Integer pageSize = options.getPageSize();
 		Integer pageOffset = options.getPagedResultsOffset();
 		String pageResultsCookie = options.getPagedResultsCookie();
 		
+		LOG.info("Reading all users");
+		List<User> users = perun.getUsersManager().getUsers();
+		LOG.info("Query returned {0} users", users.size());
 
-		List<RichMember> members = new ArrayList<RichMember>();
+		List<UserExtSource> userExtSources = new ArrayList<UserExtSource>();
 		int remaining = -1;
 		
-		LOG.info("Reading {0} members from page at offset {1}", pageSize, pageOffset);
-		if(pageSize > 0) {
-			List<Member> partMembers = new ArrayList<Member>();
-			LOG.info("Reading list of members.");
-			partMembers.addAll(perun.getMembersManager().getAllMembers());
-			LOG.info("Total members acquired: {0}", partMembers.size());
-			List<Integer> memberIds = partMembers.stream()
-				.map(member -> { return member.getId(); })
-				.sorted()
-				.collect(Collectors.toList());
-			int size = memberIds.size();
-			int last = (pageOffset + pageSize > size) ? size : pageOffset + pageSize; 
-			memberIds = memberIds.subList(pageOffset, last);
-			remaining = size - last;
-			members.addAll(perun.getMembersManager().getRichMembersByIds(memberIds, null));
-		} else {
-			LOG.info("Reading list of VOs");
-			List<Vo> vos = perun.getVosManager().getAllVos();
-			LOG.info("Query returned {0} VOs", vos.size());
-
-			for(Vo vo : vos) {
-				LOG.info("Reading list of members for VO: {0}", vo.getId());
-				members.addAll(perun.getMembersManager().getCompleteRichMembersForVo(vo.getId(), null, null));
-				LOG.info("Total members read so far: {0}", members.size());
-			}
+		for(User user : users) {
+			LOG.info("Reading user ext sources for user {0}", user.getId());
+			userExtSources.addAll(perun.getUsersManager().getUserExtSources(user.getId()));
+			LOG.info("Total user ext sources so far: {0}", userExtSources.size());
 		}
-		LOG.info("Query returned {0} members", members.size());
-		for(RichMember member : members) {
-			mapResult(member, handler);
+		if(pageSize > 0) {
+			int size = userExtSources.size();
+			int last = (pageOffset + pageSize > size) ? size : pageOffset + pageSize; 
+			userExtSources = userExtSources.subList(pageOffset, last);
+			remaining = size - last;
+		}
+		LOG.info("Query returned {0} user ext sources", userExtSources.size());
+		for(UserExtSource ues : userExtSources) {
+			mapResult(ues, handler);
 		}
 		SearchResult result = new SearchResult(
 				 pageResultsCookie, 	/* cookie */ 
@@ -122,21 +105,30 @@ public class VoMemberSearch extends ObjectSearchBase implements ObjectSearch {
 		((SearchResultsHandler)handler).handleResult(result);
 	}
 
-	private void mapResult(RichMember member, ResultsHandler handler) {
+	private void mapResult(UserExtSource userExtSource, ResultsHandler handler) {
 		ConnectorObjectBuilder out = new ConnectorObjectBuilder();
 		out.setObjectClass(objectClass);
-		out.setName(mapName(member));
-		out.setUid(member.getId().toString());
-		if(member.getMemberAttributes() != null) {
-			for(Attribute attr: member.getMemberAttributes()) {
+		out.setName(userExtSource.getUserId().toString() + ":" + userExtSource.getExtSource().getId().toString());
+		out.setUid(userExtSource.getId().toString());
+		// ues_login
+		AttributeBuilder ab = new AttributeBuilder();
+		ab.setName("ues_login");
+		ab.addValue(userExtSource.getLogin());
+		out.addAttribute(ab.build());
+		// ues_loa
+		ab = new AttributeBuilder();
+		ab.setName("ues_loa");
+		ab.addValue(userExtSource.getLoa());
+		out.addAttribute(ab.build());
+		// defined attributes
+		List<Attribute> attrs = perun.getAttributesManager().getUserExtSourceAttributes(userExtSource.getId());
+		if(attrs != null) {
+			for(Attribute attr: attrs) {
 				out.addAttribute(createAttribute(attr));
 			}
 		}
 		handler.handle(out.build());
 	}
 
-	private String mapName(RichMember member) {
-		return member.getVoId().toString() + ":" + member.getUserId().toString();
-	}
 
 }
