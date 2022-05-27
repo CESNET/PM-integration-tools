@@ -19,9 +19,11 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptionInfoBuilder;
 import org.identityconnectors.framework.common.objects.OperationOptions;
@@ -30,15 +32,18 @@ import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.SyncResultsHandler;
 import org.identityconnectors.framework.common.objects.SyncToken;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.PoolableConnector;
+import org.identityconnectors.framework.spi.operations.DeleteOp;
 import org.identityconnectors.framework.spi.operations.SchemaOp;
 import org.identityconnectors.framework.spi.operations.SearchOp;
 import org.identityconnectors.framework.spi.operations.SyncOp;
 import org.identityconnectors.framework.spi.operations.TestOp;
+import org.identityconnectors.framework.spi.operations.UpdateOp;
 
 import cz.metacentrum.perun.polygon.connector.rpc.PerunRPC;
 
@@ -48,7 +53,7 @@ import cz.metacentrum.perun.polygon.connector.rpc.PerunRPC;
  */
 @ConnectorClass(displayNameKey = "cz.metacentrum.perun.polygon.connector", configurationClass = PerunRPCConfiguration.class)
 public class PerunRPCConnector 
-implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, SyncOp, SchemaManager
+implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, SyncOp, DeleteOp, UpdateOp, SchemaManager
 {
 	private static final Log LOG = Log.getLog(PerunRPCConnector.class);
 	
@@ -155,6 +160,16 @@ implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, SyncOp, Schema
 		return strategy.getLatestSyncToken(objectClass);
 	}
 
+	@Override
+	public void delete(ObjectClass objectClass, Uid uid, OperationOptions options) {
+		return;
+	}
+	
+	@Override
+	public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> replaceAttributes, OperationOptions options) {
+		return uid;
+	}
+
 	private void initSchemaAdapters() {
 		List<SchemaAdapter> adapters = Arrays.asList(
 				new ExtSourceSchemaAdapter(perun),
@@ -237,4 +252,5 @@ implements PoolableConnector, TestOp, SchemaOp, SearchOp<Filter>, SyncOp, Schema
 	public ObjectSearch getObjectSearchForObjectClass(ObjectClass objectClass) {
 		return mapObjectClassToObjectSearch.get(objectClass.getObjectClassValue());
 	}
+
 }

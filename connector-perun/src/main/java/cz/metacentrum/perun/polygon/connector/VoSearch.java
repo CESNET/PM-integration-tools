@@ -14,6 +14,7 @@ import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.identityconnectors.framework.common.objects.filter.EqualsIgnoreCaseFilter;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.spi.SearchResultsHandler;
+import org.springframework.web.client.HttpClientErrorException;
 
 import cz.metacentrum.perun.polygon.connector.rpc.PerunRPC;
 import cz.metacentrum.perun.polygon.connector.rpc.model.Attribute;
@@ -31,9 +32,13 @@ public class VoSearch extends ObjectSearchBase implements ObjectSearch {
 	@Override
 	public PerunBean readPerunBeanById(Integer id, Integer... ids) {
 		LOG.info("Reading VO with uuid {0}", id);
-		Vo vo = perun.getVosManager().getVoById(id);
-		LOG.info("Query returned {0} VO", vo.toString());
-		
+		Vo vo = null;
+		try {
+			vo = perun.getVosManager().getVoById(id);
+		} catch (HttpClientErrorException e) {
+			LOG.info("Query returned no VO");
+			return null;
+		}
 		return vo;
 	}
 	
@@ -85,8 +90,13 @@ public class VoSearch extends ObjectSearchBase implements ObjectSearch {
 		if(pageSize != null && pageSize > 0) {
 			int size = vos.size();
 			int last = (pageOffset + pageSize > size) ? size : pageOffset + pageSize; 
-			vos= vos.subList(pageOffset, last);
-			remaining = size - last;
+			if(pageOffset > size) {
+				vos.clear();
+				remaining = 0;
+			} else {
+				vos = vos.subList(pageOffset, last);
+				remaining = size - last;
+			}
 		}
 		for(Vo vo : vos) {
 			mapResult(vo, handler);
