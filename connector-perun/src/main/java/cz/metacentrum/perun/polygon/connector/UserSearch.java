@@ -107,6 +107,10 @@ public class UserSearch extends ObjectSearchBase {
 			int last = (pageOffset + pageSize > size) ? size : pageOffset + pageSize; 
 			userIds = userIds.subList(pageOffset, last);
 			remaining = size - last;
+			if(userIds.isEmpty()) {
+				LOG.warn("User sublist created from original size {0} at offsets {1} and {2} is empty", size, pageOffset, last);
+			}
+			LOG.info("Asking for details for {0} users", userIds.size());
 			users = perun.getUsersManager().getRichUsersWithAttributesByIds(userIds);
 		} else {
 			users = perun.getUsersManager().getAllRichUsersWithAttributes(true);

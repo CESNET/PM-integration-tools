@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xsd:schema elementFormDefault="qualified"
+            targetNamespace="urn:perun:types"
+            xmlns:tns="urn:perun:types"
+            xmlns:a="http://prism.evolveum.com/xml/ns/public/annotation-3"
+            xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+            xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+    <xsd:import namespace="http://midpoint.evolveum.com/xml/ns/public/common/common-3"/>
+    <xsd:import namespace="http://prism.evolveum.com/xml/ns/public/types-3"/>
+
+    <xsd:complexType name="StatusType">
+        <xsd:simpleContent>
+            <xsd:restriction base="xsd:string">
+                <xsd:enumeration value="VALID"/>
+                <xsd:enumeration value="INVALID" />
+                <xsd:enumeration value="EXPIRED" />
+                <xsd:enumeration value="DISABLED" />
+            </xsd:restriction>
+        </xsd:simpleContent>
+    </xsd:complexType>
+    
+    <xsd:complexType name="MembershipType">
+        <xsd:simpleContent>
+            <xsd:restriction base="xsd:string">
+                <xsd:enumeration value="NOT_DEFINED"/>
+                <xsd:enumeration value="DIRECT" />
+                <xsd:enumeration value="INDIRECT" />
+            </xsd:restriction>
+        </xsd:simpleContent>
+    </xsd:complexType>
+</xsd:schema>
