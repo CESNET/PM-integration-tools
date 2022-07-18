@@ -72,46 +72,53 @@ foreach($definitions as $entity => $defs) {
 		$discriminator = "";
 		break;
     }
+    $attrNames = array();
     print "<!-- $entity -->\n ";
     print "<objectType>\n";
     foreach($defs as $def) {
-	$attrNamespace = $def->namespace;
-	$attrPrefix = mapPrefix($def->namespace);
+        $attrNamePrefix = "";
+        $attrNamespace = $def->namespace;
+	    $attrPrefix = mapPrefix($def->namespace);
         $attrName = mapAttributeName($def->friendlyName);
         $attrType = mapAttributeType($def->type);
         $attrIsMultiValued = isMultiValued($def->type);
-	print "    <attribute>\n";
-	print "        <ref>ri:$attrPrefix$attrName</ref>\n";
-	print "        <displayName>$def->friendlyName</displayName>\n";
-	print "        <description>$def->description</description>\n";
-	print "        <tolerant>true</tolerant>\n";
-	print "        <exclusiveStrong>false</exclusiveStrong>\n";
-	print "        <inbound>\n";
-	print "            <name>$attrName mapping</name>\n";
-	print "            <authoritative>true</authoritative>\n";
-	print "            <exclusive>false</exclusive>\n";
-	print "            <strength>strong</strength>\n";
-	if(isMap($def->type)) {
-	    print "            <expression>\n";
-	    print "                <script>\n";
-	    print "                   <code>\n";
-	    print "                       input.getLang().toString()\n";
-	    print "                   </code>\n";
-	    print "                </script>\n";
+        if(array_key_exists("$discriminator$attrName", $attrNames)) {
+            $attrNamePrefix = "virt_";
+        } else {
+            $attrNames["$discriminator$attrName"] = $def;
+        }
+        print "    <attribute>\n";
+	    print "        <ref>ri:$attrPrefix$attrName</ref>\n";
+	    print "        <displayName>$def->friendlyName</displayName>\n";
+    	print "        <description>$def->description</description>\n";
+    	print "        <tolerant>true</tolerant>\n";
+    	print "        <exclusiveStrong>false</exclusiveStrong>\n";
+    	print "        <inbound>\n";
+    	print "            <name>$attrName mapping</name>\n";
+    	print "            <authoritative>true</authoritative>\n";
+    	print "            <exclusive>false</exclusive>\n";
+    	print "            <strength>strong</strength>\n";
+    	if(isMap($def->type)) {
+    	    print "            <expression>\n";
+    	    print "                <script>\n";
+    	    print "                   <code>\n";
+    	    print "                       input.getLang().toString()\n";
+    	    print "                   </code>\n";
+    	    print "                </script>\n";
             print "            </expression>\n";
             print "            <condition>\n";
-	    print "                <script>\n";
-	    print "                   <code>\n";
-	    print "                       input != null\n";
-	    print "                   </code>\n";
-	    print "                </script>\n";
+    	    print "                <script>\n";
+    	    print "                   <code>\n";
+    	    print "                       input != null\n";
+    	    print "                   </code>\n";
+    	    print "                </script>\n";
             print "            </condition>\n";
-	}
-	print "            <target>\n";
-	print "               <path>\$focus/extension/$discriminator$attrName</path>\n";
-	print "            </target>\n";
-	print "        </inbound>\n";
-	print "    </attribute>\n";
+        }
+    	print "            <target>\n";
+    	print "               <path>\$focus/extension/$discriminator$attrNamePrefix$attrName</path>\n";
+    	print "            </target>\n";
+    	print "        </inbound>\n";
+    	print "    </attribute>\n";
     }
     print "</objectType>\n\n";
 }

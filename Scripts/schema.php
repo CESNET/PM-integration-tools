@@ -43,15 +43,21 @@ foreach($data as $attrdef) {
 }
 
 foreach($definitions as $entity => $defs) {
+    $attrNames = array();
     print "<xsd:ComplexType name='".mapEntityName($entity)."Type' />\n";
     print "    <xsd:sequence>\n";
     foreach($defs as $def) {
-	$attrNamespace = $def->namespace;
-        $attrName = mapAttributeName($def->friendlyName);
-        $attrType = mapAttributeType($def->type);
-	$attrTypeOri = $def->type;
-        $attrIsMultiValued = isMultiValued($def->type);
-        print "        <xsd:element name='$attrName' type='$attrType' minOccurs='0' ". ($attrIsMultiValued ? "maxOccurs='unbounded'" : "maxOccurs='1'") ." /> <!-- $attrNamespace:$attrName, $attrTypeOri -->\n";
+	   $attrNamespace = $def->namespace;
+       $attrName = mapAttributeName($def->friendlyName, $attrNamespace);
+       $attrType = mapAttributeType($def->type);
+	   $attrTypeOri = $def->type;
+       $attrIsMultiValued = isMultiValued($def->type);
+       if(array_key_exists($attrName, $attrNames)) {
+           print "        <xsd:element name='virt_$attrName' type='$attrType' minOccurs='0' ". ($attrIsMultiValued ? "maxOccurs='unbounded'" : "maxOccurs='1'") ." /> <!-- $attrNamespace:$attrName, $attrTypeOri -->\n";
+       } else {
+           print "        <xsd:element name='$attrName' type='$attrType' minOccurs='0' ". ($attrIsMultiValued ? "maxOccurs='unbounded'" : "maxOccurs='1'") ." /> <!-- $attrNamespace:$attrName, $attrTypeOri -->\n";
+           $attrNames[$attrName] = $def;
+       }
     }
     print "    </xsd:sequence>\n";
     print "</xsd:ComplexType>\n\n";
@@ -81,8 +87,10 @@ function mapEntityName($name) {
 }
 
 
-function mapAttributeName($name) {
+function mapAttributeName($name, $namespace) {
     $name = str_replace(":", "_", $name);
+    $parts = explode(':', $namespace);
+    $kind = $parts[4];
     return $name;
 }
 
